@@ -1,89 +1,292 @@
+import { Plugin, Setting, Modal, App, PluginSettingTab, Notice } from 'obsidian';
 import { getFontAwesomeIcon } from './icons/fontAwesome';
-import { loadIcons } from './features/loadIcons';
 import { insertRule } from './features/insertRule';
 import { exportRules } from './features/exportRules';
 
+// Rule categories with subcategories (initial categories)
+const defaultCategories = {
+    Movement: [
+        "Ground Movement",
+        "Aerial Movement",
+        "Naval Movement",
+        "Terrain Effects",
+        "Speed Modifiers",
+        "Formation Movement",
+        "Retreat & Fallback",
+    ],
+    Combat: [
+        "Ranged Combat",
+        "Close-Combat",
+        "Special Attacks",
+        "Defence Mechanisms",
+    ],
+    "Psyonics/Magic": [
+        "Spellcasting",
+        "Powers",
+        "Magic Items",
+        "Psyonic Testing",
+        "Energy Resources",
+        "Summoning Entities",
+        "Dispelling & Counterspells",
+    ],
+    Tests: [
+        "Attribute Tests",
+        "Morale Checks",
+        "Reaction Rolls",
+        "Custom Tests",
+        "Opposed Rolls",
+    ],
+    Vehicles: [
+        "Land Vehicles",
+        "Air Vehicles",
+        "Naval Vehicles",
+        "Maintenance & Repairs",
+        "Boarding Mechanics",
+        "Vehicle Damage Tables",
+        "Fuel & Resource Management",
+    ],
+    Animals: [
+        "Mounts",
+        "Beasts of War",
+        "Creature Control",
+        "Creature Stats & Abilities",
+        "Feeding & Rest",
+    ],
+    Terrain: [
+        "Weather Effects",
+        "Day/Night Cycles",
+        "Hazardous Terrain",
+        "Fortifications",
+        "Dynamic Terrain Changes",
+    ],
+    Armies: [
+        "Unit Stats",
+        "Unit Classes",
+        "Leadership Effects",
+        "Unit Morale",
+        "Unit Abilities",
+    ],
+    Campaigns: [
+        "Mission Objectives",
+        "Scenario Types",
+        "Victory Conditions",
+        "Persistent Stats",
+        "Resource Management",
+    ],
+    "Customised Genre-Specific Rules": [
+        "Sci-Fi",
+        "Fantasy",
+        "Modern Warfare",
+        "Post-Apocalyptic",
+        "Historical",
+    ],
+};
+
 export default class WargameRulesPlugin extends Plugin {
-    // List of icon keys; add more as new features or actions are introduced
-    iconList: string[] = [
-        'attack', // Sword icon, represents offensive actions
-        'defense', // Shield icon, represents defensive actions
-        'move', // Walking icon, for movement-related mechanics
-        'range', // Bullseye icon, for ranged attack mechanics
-        // Add more icons here as the plugin evolves
-    ];
+    categories: Record<string, string[]> = defaultCategories;
 
     async onload() {
-        console.log('WargameRulesPlugin loaded'); // Always nice to see this pop up when debugging
+        console.log('WargameRulesPlugin loaded');
 
-        // Add the custom ribbon icons to the UI
-        this.addRibbonIcons();
-
-        // Command to insert combat rules into the current note
+        this.addRibbonIcon('dice', 'Open Rule Categories', () => this.showRuleCategories());
+        
         this.addCommand({
             id: 'insert-rule',
             name: 'Insert Combat Rule',
-            callback: () => insertRule(), 
-            // Note: This could be expanded later to let users select specific rule types.
+            callback: () => insertRule(),
         });
-
-        // Command to export all defined rules to a PDF
         this.addCommand({
             id: 'export-rules',
             name: 'Export Rules to PDF',
             callback: () => exportRules(),
-            // Future idea: Add more export formats, like Markdown or Word documents
-        });
-    }
-
-    // Handles the creation and addition of custom ribbon icons
-    addRibbonIcons() {
-        const ribbonContainer = document.createElement('div');
-        ribbonContainer.classList.add('ribbon-container'); 
-        // Styling centralised in ribbon.css; keep it clean and easy to maintain
-
-        this.iconList.forEach((iconType) => {
-            const iconClass = getFontAwesomeIcon(iconType); // Gets the CSS class for the icon
-            const iconElement = document.createElement('i');
-            iconElement.className = iconClass;
-            iconElement.title = this.getIconDescription(iconClass); 
-            // Tooltip text for user clarity - a small touch, but it helps usability!
-
-            // Future idea: Make icons clickable for specific actions (e.g., inserting related rules)
-            ribbonContainer.appendChild(iconElement);
         });
 
-        document.body.appendChild(ribbonContainer); 
-        // Note to self: Maybe move this into a specific container in the DOM later.
+        this.addSettingTab(new WargameRulesSettingTab(this.app, this));
     }
 
-    // Returns a tooltip description for each icon; fallback is a generic description
-    getIconDescription(iconClass: string): string {
-        const descriptions: Record<string, string> = {
-            'fa-solid fa-sword': 'A mighty sword for combat.',
-            'fa-solid fa-shield': 'A shield for protection.',
-            'fa-solid fa-dice': 'Dice for strategy or luck.',
-            'fa-solid fa-helmet': 'A helmet for warriors.',
-            // Add more as new icons are added
-        };
-        return descriptions[iconClass] || 'An icon for a feature.';
-        // Fallback ensures no ugly tooltips like "undefined" appear for missing descriptions
+    /**
+     * Show a modal with rule categories and subcategories
+     */
+    showRuleCategories() {
+        const categories = Object.keys(this.categories);
+        new RuleCategoriesModal(this.app, categories, this.categories).open();
+    }
+
+    /**
+     * Insert rule header into the active note
+     */
+    insertRuleHeader(category: string, subcategory: string) {
+        const editor = this.app.workspace.activeLeaf?.view?.sourceMode ? this.app.workspace.activeLeaf.view.sourceMode.cmEditor : null;
+        if (editor) {
+            const header = `### ${category}: ${subcategory}`;
+            editor.replaceSelection(header);
+        }
+    }
+
+    /**
+     * Add custom category and subcategories to the plugin
+     */
+    addCustomCategory(categoryName: string, subcategories: string[]) {
+        if (this.categories[categoryName]) {
+            new Notice(`Category "${categoryName}" already exists!`);
+        } else {
+            this.categories[categoryName] = subcategories;
+            this.saveCategories();
+            new Notice(`Custom Category "${categoryName}" added!`);
+        }
+    }
+
+    /**
+     * Save categories to settings
+     */
+    saveCategories() {
+        this.saveData({ categories: this.categories });
+    }
+
+    /**
+     * Load categories from settings
+     */
+    loadCategories() {
+        const savedCategories = this.loadData();
+        if (savedCategories) {
+            this.categories = savedCategories.categories || defaultCategories;
+        }
     }
 
     onunload() {
-        // Clean up: Remove the ribbon container from the DOM to prevent clutter
-        const ribbonContainer = document.querySelector('.ribbon-container');
-        if (ribbonContainer) ribbonContainer.remove();
-
-        console.log('WargameRulesPlugin unloaded'); 
-        // A good reminder when disabling or debugging the plugin
+        console.log('WargameRulesPlugin unloaded');
     }
 }
 
-/*
- * Notes while programming:
- * - The ribbon is a simple and effective way to visually enhance the UI, but consider allowing customisation (e.g., letting users pick which icons appear).
- * - Adding interactivity to the icons (like click actions) would be a fun enhancement.
- * - Export functionality could be improved by supporting more formats or adding user-defined export templates.
- * - Remember: Hugo, my chaos kitten, would probably sit on the keyboard and add a feature no one asked for, like a "random meow" button. To Hugo, whom I love dearly, even if a Chaos Kitten at times.
- */
+// Modal to display rule categories and subcategories with a search box
+class RuleCategoriesModal extends Modal {
+    categories: string[];
+    ruleCategories: Record<string, string[]>;
+    searchInput: HTMLInputElement;
+
+    constructor(app: App, categories: string[], ruleCategories: Record<string, string[]>) {
+        super(app);
+        this.categories = categories;
+        this.ruleCategories = ruleCategories;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+
+        // Add search box
+        this.searchInput = contentEl.createEl('input', { type: 'text', placeholder: 'Search categories...' });
+        this.searchInput.addEventListener('input', () => this.filterCategories());
+
+        const listContainer = contentEl.createEl('div');
+        listContainer.addClass('rule-categories-list');
+
+        // Display categories
+        this.categories.forEach((category) => {
+            const categoryEl = contentEl.createEl('div');
+            categoryEl.addClass('rule-category');
+            categoryEl.createEl('h3', { text: category });
+            const subcategoryList = contentEl.createEl('ul');
+
+            this.ruleCategories[category].forEach((subcategory) => {
+                const subcategoryEl = contentEl.createEl('li', { text: subcategory });
+                subcategoryEl.addEventListener('click', () => {
+                    this.insertHeader(category, subcategory);
+                    this.close();
+                });
+                subcategoryList.appendChild(subcategoryEl);
+            });
+
+            categoryEl.appendChild(subcategoryList);
+            listContainer.appendChild(categoryEl);
+        });
+    }
+
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+
+    filterCategories() {
+        const searchTerm = this.searchInput.value.toLowerCase();
+        const filteredCategories = this.categories.filter(category =>
+            category.toLowerCase().includes(searchTerm)
+        );
+        const listContainer = this.contentEl.querySelector('.rule-categories-list');
+        if (listContainer) {
+            listContainer.empty();
+            filteredCategories.forEach((category) => {
+                const categoryEl = this.contentEl.createEl('div');
+                categoryEl.addClass('rule-category');
+                categoryEl.createEl('h3', { text: category });
+                const subcategoryList = this.contentEl.createEl('ul');
+
+                this.ruleCategories[category].forEach((subcategory) => {
+                    const subcategoryEl = this.contentEl.createEl('li', { text: subcategory });
+                    subcategoryEl.addEventListener('click', () => {
+                        this.insertHeader(category, subcategory);
+                        this.close();
+                    });
+                    subcategoryList.appendChild(subcategoryEl);
+                });
+
+                categoryEl.appendChild(subcategoryList);
+                listContainer.appendChild(categoryEl);
+            });
+        }
+    }
+
+    insertHeader(category: string, subcategory: string) {
+        const plugin = (this.app.plugins.getPlugin('wargame-rules-plugin') as WargameRulesPlugin);
+        plugin.insertRuleHeader(category, subcategory);
+    }
+}
+
+// Setting tab for customising categories
+class WargameRulesSettingTab extends PluginSettingTab {
+    plugin: WargameRulesPlugin;
+
+    constructor(app: App, plugin: WargameRulesPlugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display(): void {
+        let { containerEl } = this;
+
+        containerEl.empty();
+        containerEl.createEl('h2', { text: 'Wargame Rules Plugin Settings' });
+
+        new Setting(containerEl)
+            .setName('Customize Categories')
+            .setDesc('Modify or add new rule categories and subcategories.')
+            .addButton((btn) => btn.setButtonText('Add Category').onClick(() => {
+                new AddCustomCategoryModal(this.plugin).open();
+            }));
+    }
+}
+
+// Modal for adding a custom category and subcategories
+class AddCustomCategoryModal extends Modal {
+    plugin: WargameRulesPlugin;
+    categoryInput: HTMLInputElement;
+    subcategoriesInput: HTMLTextAreaElement;
+
+    constructor(plugin: WargameRulesPlugin) {
+        super(plugin.app);
+        this.plugin = plugin;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+
+        contentEl.empty();
+        contentEl.createEl('h2', { text: 'Add Custom Category' });
+
+        this.categoryInput = contentEl.createEl('input', { type: 'text', placeholder: 'Category Name' });
+        this.subcategoriesInput = contentEl.createEl('textarea', { placeholder: 'Enter subcategories, one per line' });
+
+        new Setting(contentEl)
+            .setName('Subcategories')
+            .addTextArea((text) => {
+                text.setPlaceholder('Subcategory 1\nSubcategory 2\n
