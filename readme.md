@@ -1,7 +1,7 @@
 # Obsidian Wargaming Rules Plugin
 
 ## Overview
-The **Obsidian Wargaming Rules Plugin** is a powerful tool for wargame developers, hobbyists, and enthusiasts to manage, organise, and share tabletop wargaming rules directly from their Obsidian workspace. With built-in support for markdown formatting, custom icons, and export options, the plugin bridges the gap between creative design and functional documentation.
+The **Obsidian Wargaming Rules Plugin** is a personaltool for wargame developers, hobbyists, and enthusiasts to manage, organise, and share tabletop wargaming rules directly from their Obsidian workspace. With built-in support for markdown formatting, custom icons, and export options, the plugin bridges the gap between creative design and functional documentation.
 
 Designed with flexibility and usability in mind, this plugin enhances the workflow for creating and distributing high-quality rulesets for wargaming systems.
 
