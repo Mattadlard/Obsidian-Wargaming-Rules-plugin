@@ -1,13 +1,24 @@
-import { WargameSettings } from '../settings/settings';
+import { PDFDocument } from "pdf-lib";
 
-export function exportRules(settings: WargameSettings) {
-    console.log(`Exporting rules in ${settings.ruleFormat} format`);
+export async function exportRules(): Promise<void> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([600, 800]);
+  page.drawText("Exported Rules:", { x: 50, y: 750 });
 
-    if (settings.ruleFormat === 'PDF') {
-        // Implement PDF export logic here
-        console.log('Exporting to PDF...');
-    } else if (settings.ruleFormat === 'Text') {
-        // Implement Text export logic here
-        console.log('Exporting to Text...');
-    }
+  // Sample rules
+  const rules = ["Rule 1: Description", "Rule 2: Description"];
+  rules.forEach((rule, index) => {
+    page.drawText(rule, { x: 50, y: 700 - index * 20 });
+  });
+
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Wargame_Rules.pdf";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
