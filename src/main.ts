@@ -1,5 +1,6 @@
 import { App, Plugin, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { RuleModal } from './components/RuleModal';
+import { RuleCategoryManager } from './components/RuleCategoryManager';
 import { WargameSettings, DEFAULT_SETTINGS } from './settings';
 import { exportRules } from './utils/exportRules';
 import { insertRule } from './utils/insertRule';
@@ -36,7 +37,7 @@ export default class WargameRulesPlugin extends Plugin {
   }
 
   openCategoryManager() {
-    new RuleModal(this.app, this.settings.categories).open();
+    new RuleCategoryManager(this.app, this.settings).open();
   }
 
   async loadSettings() {
@@ -46,33 +47,5 @@ export default class WargameRulesPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-  }
-}
-
-class WargameSettingsTab extends PluginSettingTab {
-  plugin: WargameRulesPlugin;
-
-  constructor(app: App, plugin: WargameRulesPlugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-
-  display(): void {
-    const { containerEl } = this;
-
-    containerEl.empty();
-
-    new Setting(containerEl)
-      .setName('Export Format')
-      .setDesc('Choose the format for exporting rules.')
-      .addDropdown((dropdown) => {
-        dropdown.addOption('pdf', 'PDF');
-        dropdown.addOption('markdown', 'Markdown');
-        dropdown.setValue(this.plugin.settings.exportFormat);
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.exportFormat = value;
-          await this.plugin.saveSettings();
-        });
-      });
   }
 }
