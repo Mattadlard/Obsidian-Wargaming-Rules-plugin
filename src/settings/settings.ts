@@ -1,29 +1,41 @@
-export interface WargameSettings {
-    ruleFormat: string;
-    enableIcons: boolean;
-    theme: string;
-}
+import { WargameSettings } from './wargameSettings';
+import { RuleCategoryManager } from './components/RuleCategoryManager';
 
-export const DEFAULT_SETTINGS: WargameSettings = {
-    ruleFormat: 'PDF',
-    enableIcons: true,
-    theme: 'light',
-};
+export class WargameSettingsTab extends PluginSettingTab {
+  plugin: WargameRulesPlugin;
 
-export class WargameSettingsManager {
-    settings: WargameSettings;
+  constructor(app: App, plugin: WargameRulesPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
 
-    constructor() {
-        this.settings = DEFAULT_SETTINGS;
-    }
+  display(): void {
+    const { containerEl } = this;
 
-    loadSettings() {
-        // Load settings from storage (Example, could be enhanced for actual storage logic)
-        console.log('Settings loaded:', this.settings);
-    }
+    containerEl.empty();
 
-    saveSettings() {
-        // Save settings to storage (Example, could be enhanced for actual storage logic)
-        console.log('Settings saved:', this.settings);
-    }
+    // Display current export format setting
+    new Setting(containerEl)
+      .setName('Export Format')
+      .setDesc('Choose the format for exporting rules.')
+      .addDropdown((dropdown) => {
+        dropdown.addOption('pdf', 'PDF');
+        dropdown.addOption('markdown', 'Markdown');
+        dropdown.setValue(this.plugin.settings.exportFormat);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.exportFormat = value;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    // Button to manage categories
+    new Setting(containerEl)
+      .setName('Manage Categories')
+      .setDesc('Add, remove, and manage rule categories and subcategories.')
+      .addButton((button) => {
+        button.setButtonText('Open Category Manager').onClick(() => {
+          new RuleCategoryManager(this.app, this.plugin.settings).open();
+        });
+      });
+  }
 }
