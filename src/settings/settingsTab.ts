@@ -1,38 +1,45 @@
-import { WargameSettingsManager } from './settings';
-import { Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting } from "obsidian";
+import WargameRulesPlugin from "../main";
 
-export class SettingsTab {
-    settingsManager: WargameSettingsManager;
+export class SettingsTab extends PluginSettingTab {
+  plugin: WargameRulesPlugin;
 
-    constructor(settingsManager: WargameSettingsManager) {
-        this.settingsManager = settingsManager;
-    }
+  constructor(app: App, plugin: WargameRulesPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
 
-    renderTab(container: HTMLElement) {
-        container.createEl('h2', { text: 'Wargame Rules Plugin Settings' });
+  display(): void {
+    const { containerEl } = this;
 
-        new Setting(container)
-            .setName('Enable Icons')
-            .setDesc('Enable custom icons in ribbon.')
-            .addToggle(toggle => toggle.setValue(this.settingsManager.settings.enableIcons).onChange(value => {
-                this.settingsManager.settings.enableIcons = value;
-                this.settingsManager.saveSettings();
-            }));
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "Wargame Rules Plugin Settings" });
 
-        new Setting(container)
-            .setName('Rule Format')
-            .setDesc('Choose the format for exported rules.')
-            .addText(text => text.setValue(this.settingsManager.settings.ruleFormat).onChange(value => {
-                this.settingsManager.settings.ruleFormat = value;
-                this.settingsManager.saveSettings();
-            }));
+    // Add custom category
+    new Setting(containerEl)
+      .setName("Add Custom Category")
+      .setDesc("Create a new rule category with subcategories.")
+      .addText((text) => {
+        text.setPlaceholder("Category Name").onChange((value) => {
+          if (!value) return;
+          this.plugin.settings.categories[value] = [];
+          this.plugin.saveSettings();
+          new Notice(`Added category: ${value}`);
+        });
+      });
 
-        new Setting(container)
-            .setName('Theme')
-            .setDesc('Choose the theme for the plugin.')
-            .addDropdown(dropdown => dropdown.addOption('light', 'Light').addOption('dark', 'Dark').setValue(this.settingsManager.settings.theme).onChange(value => {
-                this.settingsManager.settings.theme = value;
-                this.settingsManager.saveSettings();
-            }));
-    }
+    // Export format
+    new Setting(containerEl)
+      .setName("Export Format")
+      .setDesc("Choose how to export rules (PDF or Markdown).")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("pdf", "PDF").addOption("markdown", "Markdown");
+        dropdown.setValue(this.plugin.settings.exportFormat);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.exportFormat = value as "pdf" | "markdown";
+          await this.plugin.saveSettings();
+          new Notice(`Export format set to ${value}`);
+        });
+      });
+  }
 }
