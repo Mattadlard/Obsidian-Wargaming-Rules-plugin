@@ -1,0 +1,18 @@
+{
+  "name": "advanced-wargame-rules",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "dependencies": {
+    "obsidian": "latest",
+    "jspdf": "^2.5.1",
+    "marked": "^4.0.10"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.4"
+  }
+}
