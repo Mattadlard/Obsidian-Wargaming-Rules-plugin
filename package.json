@@ -1,17 +1,19 @@
 {
-    "name": "obsidian-wargame-rules-plugin",
-    "version": "1.0.0",
-    "description": "A plugin to manage wargame rules with icons and PDF export functionality",
-    "main": "src/main.ts",
-    "scripts": {
-        "build": "tsc",
-        "start": "tsc --watch"
-    },
-    "dependencies": {
-        "obsidian": "^0.14.0",
-        "font-awesome": "^5.15.4"
-    },
-    "devDependencies": {
-        "typescript": "^4.3.5"
-    }
+  "name": "obsidian-wargame-rules",
+  "version": "1.0.0",
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "obsidian": "^0.12.0",
+    "typescript": "^4.0.0",
+    "jest": "^26.0.0"
+  },
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "obsidian-plugin-dev-server"
+  },
+  "keywords": ["obsidian", "plugin", "wargame", "rules"],
+  "author": "Your Name"
 }
