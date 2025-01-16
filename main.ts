@@ -1,278 +1,136 @@
-import { Plugin, MarkdownView, TFile, Notice } from 'obsidian';
-import { jsPDF } from "jspdf";
-import * as marked from 'marked';
+import { Plugin, Menu, MarkdownView, Notice, Setting, App } from 'obsidian';
 
-const MESSAGES = {
-    NO_ACTIVE_FILE: 'No active file to track version for!',
-    NO_MARKDOWN_VIEW: 'No active markdown view found!',
-    VERSION_SAVED: 'Version saved successfully!',
-    NO_VERSION_HISTORY: 'No version history found!',
-    NO_BACKLINKS: 'No backlinks found!',
-    SAVING_VERSION: 'Saving version...',
-    EXPORTING_PDF: 'Exporting PDF...',
-    VERSION_SAVE_FAILED: 'Failed to save version. Please try again.',
-    EXPORT_FAILED: 'Export failed. Please try again.'
-};
-
-const formatMap: Record<string, (text: string) => string> = {
-    bold: (text: string) => `**${text}**`,
-    italic: (text: string) => `*${text}*`,
-    underline: (text: string) => `<u>${text}</u>`
-};
-
-export default class AdvancedWargameRulesPlugin extends Plugin {
-    settings: PluginSettings;
+export default class EnhancedWargameRulesPlugin extends Plugin {
+    iconList: string[] = [
+        'fa-solid fa-sword',
+        'fa-solid fa-shield',
+        'fa-solid fa-dice',
+        'fa-solid fa-helmet',
+    ];
+    customIconFolder: string = ''; // Store the user's custom folder path for icons
 
     async onload() {
-        console.log('Advanced Wargame Rules Plugin loaded');
+        console.log('Enhanced Wargame Rules Plugin loaded');
 
-        // Load settings or set defaults
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-
-        // Add toolbar
-        this.addToolbar();
-
-        // Commands
+        // Add a command to insert a combat rule template with an icon
         this.addCommand({
-            id: 'export-to-pdf',
-            name: 'Export Rules to PDF',
-            callback: () => this.exportToPDF('pdf'),
+            id: 'insert-combat-rule-with-icon',
+            name: 'Insert Combat Rule with Icon',
+            callback: () => this.insertCombatRuleWithIcon(),
         });
 
+        // Add a command to manage icons
         this.addCommand({
-            id: 'export-to-markdown',
-            name: 'Export Rules to Markdown',
-            callback: () => this.exportToFile('md'),
+            id: 'choose-icon-for-rule',
+            name: 'Choose Icon for Rule',
+            callback: () => this.chooseIconForRule(),
         });
-
-        this.addCommand({
-            id: 'export-to-text',
-            name: 'Export Rules to Text',
-            callback: () => this.exportToFile('txt'),
-        });
-
-        this.addCommand({
-            id: 'track-version',
-            name: 'Save Current Version',
-            callback: () => this.saveVersion(),
-        });
-
-        this.addCommand({
-            id: 'view-versions',
-            name: 'View Version History',
-            callback: () => this.viewVersionHistory(),
-        });
-
-        this.addCommand({
-            id: 'view-backlinks',
-            name: 'View Backlinks',
-            callback: () => this.viewBacklinks(),
-        });
-
-        this.addSettingTab(new AdvancedWargameRulesSettingsTab(this.app, this));
+        
+        // Add settings tab for plugin options
+        this.addSettingTab(new WargameRulesSettingTab(this.app, this));
     }
 
-    // Add a toolbar
-    addToolbar() {
-        const toolbar = this.app.workspace.createLeaf().containerEl.createDiv('rules-toolbar');
-        toolbar.addClass('rules-toolbar');
-
-        ['bold', 'italic', 'underline', 'version', 'backlinks'].forEach(action => {
-            const button = toolbar.createEl('button', { text: action.toUpperCase() });
-            button.onclick = () => this.handleToolbarAction(action);
-        });
-    }
-
-    // Handle toolbar actions
-    handleToolbarAction(action: string) {
-        switch (action) {
-            case 'bold':
-                this.applyFormatting('bold');
-                break;
-            case 'italic':
-                this.applyFormatting('italic');
-                break;
-            case 'underline':
-                this.applyFormatting('underline');
-                break;
-            case 'version':
-                this.saveVersion();
-                break;
-            case 'backlinks':
-                this.viewBacklinks();
-                break;
-        }
-    }
-
-    // Save the current version of the file
-    async saveVersion() {
-        try {
-            new Notice(MESSAGES.SAVING_VERSION);
-
-            const activeFile = this.app.workspace.getActiveFile();
-            if (!activeFile) {
-                new Notice(MESSAGES.NO_ACTIVE_FILE);
-                return;
-            }
-
-            const content = await this.app.vault.read(activeFile);
-            const versionedFileName = `${activeFile.basename}_v${Date.now()}.md`;
-            const versionFolder = this.settings.versionFolder;
-
-            await this.ensureFolderExists(versionFolder);
-            await this.app.vault.create(`${versionFolder}/${versionedFileName}`, content);
-
-            new Notice(MESSAGES.VERSION_SAVED);
-        } catch (error) {
-            console.error('Error saving version:', error);
-            new Notice(MESSAGES.VERSION_SAVE_FAILED);
-        }
-    }
-
-    // View version history
-    async viewVersionHistory() {
-        const versionFolder = this.settings.versionFolder;
-        const files = await this.app.vault.adapter.list(versionFolder);
-
-        if (!files || files.files.length === 0) {
-            new Notice(MESSAGES.NO_VERSION_HISTORY);
+    // Function to insert a combat rule template with selected icon
+    async insertCombatRuleWithIcon() {
+        const icon = await this.chooseIconForRule(); // Let user choose an icon
+        if (!icon) {
+            new Notice("No icon selected!");
             return;
         }
 
-        new Notice(`Version files:\n${files.files.join('\n')}`);
+        const editor = this.app.workspace.getActiveViewOfType(MarkdownView).editor;
+        editor.replaceSelection(`
+## Combat Resolution
+**Icon:** ![Icon](${icon})
+
+**Action Type:** [Action Type]  
+**Required Dice Roll:** [Dice Type]  
+**Modifiers:** [List of Modifiers]  
+**Success Criteria:** [Success Threshold]  
+**Special Abilities:** [List of Special Abilities or Notes]
+        `);
     }
 
-    // View backlinks
-    async viewBacklinks() {
-        const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile) {
-            new Notice(MESSAGES.NO_ACTIVE_FILE);
-            return;
-        }
-
-        const backlinks = this.app.metadataCache.resolvedLinks;
-        const currentFileLinks = backlinks[activeFile.path];
-
-        if (!currentFileLinks) {
-            new Notice(MESSAGES.NO_BACKLINKS);
-            return;
-        }
-
-        const backlinksList = Object.keys(currentFileLinks)
-            .map(linkPath => {
-                const linkedFile = this.app.vault.getAbstractFileByPath(linkPath);
-                const linkTitle = linkedFile instanceof TFile ? linkedFile.basename : 'Unknown File';
-                return `- [${linkTitle}](${linkPath})`;
-            })
-            .join('\n');
-
-        new Notice(`Backlinks:\n${backlinksList}`);
-    }
-
-    // Export to PDF
-    async exportToPDF(format: 'pdf') {
-        try {
-            new Notice(MESSAGES.EXPORTING_PDF);
-
-            const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
-            if (!editor) {
-                new Notice(MESSAGES.NO_MARKDOWN_VIEW);
-                return;
-            }
-
-            const content = editor.getValue();
-            const title = this.getNoteTitle();
-            const pdf = new jsPDF();
-
-            const styledContent = `
-            <style>
-                body { font-family: Helvetica, Arial, sans-serif; }
-                h1, h2, h3 { font-weight: bold; color: #333; }
-                p { line-height: 1.6; margin: 0.5em 0; }
-                .code { font-family: 'Courier New', Courier, monospace; }
-            </style>
-            ${marked(content)}
-            `;
-
-            pdf.html(styledContent, {
-                x: 10,
-                y: 10,
-                callback: (doc) => {
-                    doc.save(`${title}.pdf`);
-                }
+    // Function to let user choose an icon from the list or custom folder
+    async chooseIconForRule(): Promise<string | null> {
+        return new Promise((resolve) => {
+            const menu = new Menu(this.app);
+            this.iconList.forEach((iconName) => {
+                menu.addItem(iconName, () => {
+                    resolve(iconName);  // Resolve the promise with selected icon name
+                });
             });
-        } catch (error) {
-            console.error('Error exporting PDF:', error);
-            new Notice(MESSAGES.EXPORT_FAILED);
-        }
-    }
 
-    // Export to selected file format (Markdown or Text)
-    async exportToFile(format: 'md' | 'txt') {
-        try {
-            const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
-            if (!editor) {
-                new Notice(MESSAGES.NO_MARKDOWN_VIEW);
-                return;
+            // Include custom icons
+            if (this.customIconFolder) {
+                this.getCustomIconsFromFolder(this.customIconFolder).then((customIcons) => {
+                    customIcons.forEach((iconPath) => {
+                        menu.addItem(`Custom Icon: ${iconPath}`, () => {
+                            resolve(iconPath);  // Resolve with the path of the custom icon
+                        });
+                    });
+                    menu.open();
+                });
+            } else {
+                menu.open();
             }
+        });
+    }
 
-            const content = editor.getValue();
-            const title = this.getNoteTitle();
+    // Function to fetch custom icons from user-defined folder
+    async getCustomIconsFromFolder(folderPath: string): Promise<string[]> {
+        const files = this.app.vault.getFiles().filter(file => file.path.startsWith(folderPath) && (file.path.endsWith('.svg') || file.path.endsWith('.png')));
+        return files.map(file => file.path);  // Return an array of custom icon file paths
+    }
 
-            const fileContent = format === 'md' ? content : content.replace(/```[\s\S]*?```/g, ''); // Remove code blocks for plain text
-            const fileExtension = format === 'md' ? '.md' : '.txt';
+    // Function to insert a PNG image link into the rule
+    insertImageForRule() {
+        const editor = this.app.workspace.getActiveViewOfType(MarkdownView).editor;
+        const imagePath = this.chooseImageFromFolder(); // Let user pick an image
+        if (imagePath) {
+            editor.replaceSelection(`
+## Special Rule Example
 
-            await this.app.vault.create(`${title}${fileExtension}`, fileContent);
-            new Notice(`Exported as ${format.toUpperCase()} successfully!`);
-        } catch (error) {
-            console.error('Error exporting file:', error);
-            new Notice(MESSAGES.EXPORT_FAILED);
+**Image:** ![Rule Image](${imagePath})
+
+Description of rule goes here...
+            `);
+        } else {
+            new Notice('No image selected!');
         }
     }
 
-    // Apply formatting to selected text
-    applyFormatting(action: string) {
-        const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
-        if (!editor) return;
-
-        const selection = editor.getSelection();
-        const formatFunction = formatMap[action];
-
-        if (formatFunction) {
-            editor.replaceSelection(formatFunction(selection));
+    // Function to let the user choose an image from assets/images folder
+    chooseImageFromFolder(): string | null {
+        const imageFolderPath = 'assets/images/';
+        const files = this.app.vault.getFiles().filter(file => file.path.startsWith(imageFolderPath));
+        
+        if (files.length === 0) {
+            new Notice('No images found in assets/images folder!');
+            return null;
         }
+
+        const imageChoices = files.map(file => file.path);
+        const selectedImage = this.selectImage(imageChoices);
+
+        return selectedImage ? selectedImage : null;
     }
 
-    // Get note title
-    getNoteTitle(): string {
-        const file = this.app.workspace.getActiveFile();
-        return file ? file.basename : 'Untitled';
-    }
-
-    // Ensure folder exists
-    async ensureFolderExists(folderPath: string) {
-        const folder = this.app.vault.getAbstractFileByPath(folderPath);
-        if (!folder || folder instanceof TFile) {
-            await this.app.vault.createFolder(folderPath);
+    // Helper function to simulate image selection
+    selectImage(files: string[]): string | null {
+        // Simulate a selection (you may replace this with an actual UI for better experience)
+        if (files.length > 0) {
+            return files[0]; // Pick the first image as default for simplicity
         }
+        return null;
     }
 }
 
-// Plugin settings interface
-interface PluginSettings {
-    versionFolder: string;
-}
+// Define the settings tab
+class WargameRulesSettingTab extends PluginSettingTab {
+    plugin: EnhancedWargameRulesPlugin;
 
-// Default settings
-const DEFAULT_SETTINGS: PluginSettings = {
-    versionFolder: 'Wargame Rules Versions'
-};
-
-// Settings tab
-class AdvancedWargameRulesSettingsTab extends PluginSettingTab {
-    plugin: AdvancedWargameRulesPlugin;
-
-    constructor(app: App, plugin: AdvancedWargameRulesPlugin) {
+    constructor(app: App, plugin: EnhancedWargameRulesPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
@@ -281,16 +139,37 @@ class AdvancedWargameRulesSettingsTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'Advanced Wargame Rules Settings' });
+        containerEl.createEl('h2', { text: 'Wargame Rules Plugin Settings' });
 
         new Setting(containerEl)
-            .setName('Version Folder')
-            .setDesc('Folder to store version history.')
+            .setName('Rules Folder')
+            .setDesc('Folder path where your rules are stored.')
             .addText(text => text
-                .setPlaceholder('Enter folder name')
-                .setValue(this.plugin.settings.versionFolder)
+                .setPlaceholder('rules')
+                .setValue(this.plugin.settings.rulesFolder)
                 .onChange(async (value) => {
-                    this.plugin.settings.versionFolder = value;
+                    this.plugin.settings.rulesFolder = value.trim();
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Custom Icon Folder')
+            .setDesc('Specify a folder path for your custom icons.')
+            .addText(text => text
+                .setPlaceholder('assets/icons')
+                .setValue(this.plugin.customIconFolder)
+                .onChange(async (value) => {
+                    this.plugin.customIconFolder = value.trim();
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Include Table of Contents')
+            .setDesc('Include a Table of Contents in the PDF.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.includeTOC)
+                .onChange(async (value) => {
+                    this.plugin.settings.includeTOC = value;
                     await this.plugin.saveSettings();
                 }));
     }
