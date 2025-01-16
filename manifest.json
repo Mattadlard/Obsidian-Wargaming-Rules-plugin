@@ -1,0 +1,10 @@
+{
+    "id": "wargame-rules",
+    "name": "Wargame Rules Plugin",
+    "version": "1.0.0",
+    "description": "A plugin for managing wargaming rules, combat, and icons.",
+    "author": "Your Name",
+    "main": "dist/main.js",
+    "settings": true,
+    "icons": "assets/icons"
+}
