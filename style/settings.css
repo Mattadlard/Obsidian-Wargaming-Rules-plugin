@@ -1,0 +1,15 @@
+.setting-container {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+.setting-container h2 {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+}
+
+.setting-container .setting {
+    margin-bottom: 10px;
+}
