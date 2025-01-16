@@ -1,89 +1,78 @@
-import { getFontAwesomeIcon } from './icons/fontAwesome';
-import { loadIcons } from './features/loadIcons';
-import { insertRule } from './features/insertRule';
-import { exportRules } from './features/exportRules';
+import { App, Plugin, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { RuleModal } from './components/RuleModal';
+import { WargameSettings, DEFAULT_SETTINGS } from './settings';
+import { exportRules } from './utils/exportRules';
+import { insertRule } from './utils/insertRule';
 
 export default class WargameRulesPlugin extends Plugin {
-    // List of icon keys; add more as new features or actions are introduced
-    iconList: string[] = [
-        'attack', // Sword icon, represents offensive actions
-        'defense', // Shield icon, represents defensive actions
-        'move', // Walking icon, for movement-related mechanics
-        'range', // Bullseye icon, for ranged attack mechanics
-        // Add more icons here as the plugin evolves
-    ];
+  settings: WargameSettings;
 
-    async onload() {
-        console.log('WargameRulesPlugin loaded'); // Always nice to see this pop up when debugging
+  async onload() {
+    await this.loadSettings();
 
-        // Add the custom ribbon icons to the UI
-        this.addRibbonIcons();
+    // Command to insert a new rule
+    this.addCommand({
+      id: 'insert-rule',
+      name: 'Insert New Rule',
+      callback: () => insertRule(),
+    });
 
-        // Command to insert combat rules into the current note
-        this.addCommand({
-            id: 'insert-rule',
-            name: 'Insert Combat Rule',
-            callback: () => insertRule(), 
-            // Note: This could be expanded later to let users select specific rule types.
-        });
+    // Command to export rules to PDF
+    this.addCommand({
+      id: 'export-rules-pdf',
+      name: 'Export Rules to PDF',
+      callback: () => exportRules(this.settings.categories),
+    });
 
-        // Command to export all defined rules to a PDF
-        this.addCommand({
-            id: 'export-rules',
-            name: 'Export Rules to PDF',
-            callback: () => exportRules(),
-            // Future idea: Add more export formats, like Markdown or Word documents
-        });
-    }
+    // Command to manage categories
+    this.addCommand({
+      id: 'manage-rule-categories',
+      name: 'Manage Rule Categories',
+      callback: () => this.openCategoryManager(),
+    });
 
-    // Handles the creation and addition of custom ribbon icons
-    addRibbonIcons() {
-        const ribbonContainer = document.createElement('div');
-        ribbonContainer.classList.add('ribbon-container'); 
-        // Styling centralised in ribbon.css; keep it clean and easy to maintain
+    // Add settings tab
+    this.addSettingTab(new WargameSettingsTab(this.app, this));
+  }
 
-        this.iconList.forEach((iconType) => {
-            const iconClass = getFontAwesomeIcon(iconType); // Gets the CSS class for the icon
-            const iconElement = document.createElement('i');
-            iconElement.className = iconClass;
-            iconElement.title = this.getIconDescription(iconClass); 
-            // Tooltip text for user clarity - a small touch, but it helps usability!
+  openCategoryManager() {
+    new RuleModal(this.app, this.settings.categories).open();
+  }
 
-            // Future idea: Make icons clickable for specific actions (e.g., inserting related rules)
-            ribbonContainer.appendChild(iconElement);
-        });
+  async loadSettings() {
+    const data = await this.loadData();
+    this.settings = { ...DEFAULT_SETTINGS, ...data };
+  }
 
-        document.body.appendChild(ribbonContainer); 
-        // Note to self: Maybe move this into a specific container in the DOM later.
-    }
-
-    // Returns a tooltip description for each icon; fallback is a generic description
-    getIconDescription(iconClass: string): string {
-        const descriptions: Record<string, string> = {
-            'fa-solid fa-sword': 'A mighty sword for combat.',
-            'fa-solid fa-shield': 'A shield for protection.',
-            'fa-solid fa-dice': 'Dice for strategy or luck.',
-            'fa-solid fa-helmet': 'A helmet for warriors.',
-            // Add more as new icons are added
-        };
-        return descriptions[iconClass] || 'An icon for a feature.';
-        // Fallback ensures no ugly tooltips like "undefined" appear for missing descriptions
-    }
-
-    onunload() {
-        // Clean up: Remove the ribbon container from the DOM to prevent clutter
-        const ribbonContainer = document.querySelector('.ribbon-container');
-        if (ribbonContainer) ribbonContainer.remove();
-
-        console.log('WargameRulesPlugin unloaded'); 
-        // A good reminder when disabling or debugging the plugin
-    }
+  async saveSettings() {
+    await this.saveData(this.settings);
+  }
 }
 
-/*
- * Notes while programming:
- * - The ribbon is a simple and effective way to visually enhance the UI, but consider allowing customisation (e.g., letting users pick which icons appear).
- * - Adding interactivity to the icons (like click actions) would be a fun enhancement.
- * - Export functionality could be improved by supporting more formats or adding user-defined export templates.
- * - Remember: Hugo, my chaos kitten, would probably sit on the keyboard and add a feature no one asked for, like a "random meow" button. To Hugo, whom I love dearly, even if a Chaos Kitten at times.
- */
+class WargameSettingsTab extends PluginSettingTab {
+  plugin: WargameRulesPlugin;
+
+  constructor(app: App, plugin: WargameRulesPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Export Format')
+      .setDesc('Choose the format for exporting rules.')
+      .addDropdown((dropdown) => {
+        dropdown.addOption('pdf', 'PDF');
+        dropdown.addOption('markdown', 'Markdown');
+        dropdown.setValue(this.plugin.settings.exportFormat);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.exportFormat = value;
+          await this.plugin.saveSettings();
+        });
+      });
+  }
+}
