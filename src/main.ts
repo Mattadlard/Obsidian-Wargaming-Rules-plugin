@@ -1,9 +1,9 @@
-import { Plugin, Setting, Modal, App, PluginSettingTab, Notice } from 'obsidian';
+import { Plugin, Modal, App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { getFontAwesomeIcon } from './icons/fontAwesome';
 import { insertRule } from './features/insertRule';
 import { exportRules } from './features/exportRules';
 
-// Rule categories with subcategories (initial categories)
+// Default rule categories
 const defaultCategories = {
     Movement: [
         "Ground Movement",
@@ -19,6 +19,12 @@ const defaultCategories = {
         "Close-Combat",
         "Special Attacks",
         "Defence Mechanisms",
+    ],
+    Morale: [
+        "Panic",
+        "Rally",
+        "Fear",
+        "Custom Morale Rules",
     ],
     "Psyonics/Magic": [
         "Spellcasting",
@@ -52,34 +58,6 @@ const defaultCategories = {
         "Creature Stats & Abilities",
         "Feeding & Rest",
     ],
-    Terrain: [
-        "Weather Effects",
-        "Day/Night Cycles",
-        "Hazardous Terrain",
-        "Fortifications",
-        "Dynamic Terrain Changes",
-    ],
-    Armies: [
-        "Unit Stats",
-        "Unit Classes",
-        "Leadership Effects",
-        "Unit Morale",
-        "Unit Abilities",
-    ],
-    Campaigns: [
-        "Mission Objectives",
-        "Scenario Types",
-        "Victory Conditions",
-        "Persistent Stats",
-        "Resource Management",
-    ],
-    "Customised Genre-Specific Rules": [
-        "Sci-Fi",
-        "Fantasy",
-        "Modern Warfare",
-        "Post-Apocalyptic",
-        "Historical",
-    ],
 };
 
 export default class WargameRulesPlugin extends Plugin {
@@ -87,12 +65,12 @@ export default class WargameRulesPlugin extends Plugin {
 
     async onload() {
         console.log('WargameRulesPlugin loaded');
+        this.categories = await this.loadData() || defaultCategories;
 
         this.addRibbonIcon('dice', 'Open Rule Categories', () => this.showRuleCategories());
-        
         this.addCommand({
             id: 'insert-rule',
-            name: 'Insert Combat Rule',
+            name: 'Insert Rule',
             callback: () => insertRule(),
         });
         this.addCommand({
@@ -105,26 +83,24 @@ export default class WargameRulesPlugin extends Plugin {
     }
 
     /**
-     * Show a modal with rule categories and subcategories
+     * Display a modal with rule categories and subcategories.
      */
     showRuleCategories() {
-        const categories = Object.keys(this.categories);
-        new RuleCategoriesModal(this.app, categories, this.categories).open();
+        new RuleCategoriesModal(this.app, Object.keys(this.categories), this.categories).open();
     }
 
     /**
-     * Insert rule header into the active note
+     * Insert a rule header into the active note.
      */
     insertRuleHeader(category: string, subcategory: string) {
-        const editor = this.app.workspace.activeLeaf?.view?.sourceMode ? this.app.workspace.activeLeaf.view.sourceMode.cmEditor : null;
+        const editor = this.app.workspace.activeEditor?.editor;
         if (editor) {
-            const header = `### ${category}: ${subcategory}`;
-            editor.replaceSelection(header);
+            editor.replaceSelection(`### ${category}: ${subcategory}\n`);
         }
     }
 
     /**
-     * Add custom category and subcategories to the plugin
+     * Add a custom category with subcategories.
      */
     addCustomCategory(categoryName: string, subcategories: string[]) {
         if (this.categories[categoryName]) {
@@ -132,25 +108,15 @@ export default class WargameRulesPlugin extends Plugin {
         } else {
             this.categories[categoryName] = subcategories;
             this.saveCategories();
-            new Notice(`Custom Category "${categoryName}" added!`);
+            new Notice(`Category "${categoryName}" added.`);
         }
     }
 
     /**
-     * Save categories to settings
+     * Save categories to plugin data.
      */
-    saveCategories() {
-        this.saveData({ categories: this.categories });
-    }
-
-    /**
-     * Load categories from settings
-     */
-    loadCategories() {
-        const savedCategories = this.loadData();
-        if (savedCategories) {
-            this.categories = savedCategories.categories || defaultCategories;
-        }
+    async saveCategories() {
+        await this.saveData(this.categories);
     }
 
     onunload() {
@@ -158,11 +124,9 @@ export default class WargameRulesPlugin extends Plugin {
     }
 }
 
-// Modal to display rule categories and subcategories with a search box
 class RuleCategoriesModal extends Modal {
     categories: string[];
     ruleCategories: Record<string, string[]>;
-    searchInput: HTMLInputElement;
 
     constructor(app: App, categories: string[], ruleCategories: Record<string, string[]>) {
         super(app);
@@ -173,76 +137,29 @@ class RuleCategoriesModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.createEl('h2', { text: 'Rule Categories' });
 
-        // Add search box
-        this.searchInput = contentEl.createEl('input', { type: 'text', placeholder: 'Search categories...' });
-        this.searchInput.addEventListener('input', () => this.filterCategories());
-
-        const listContainer = contentEl.createEl('div');
-        listContainer.addClass('rule-categories-list');
-
-        // Display categories
-        this.categories.forEach((category) => {
-            const categoryEl = contentEl.createEl('div');
-            categoryEl.addClass('rule-category');
+        this.categories.forEach(category => {
+            const categoryEl = contentEl.createEl('div', { cls: 'category' });
             categoryEl.createEl('h3', { text: category });
-            const subcategoryList = contentEl.createEl('ul');
 
-            this.ruleCategories[category].forEach((subcategory) => {
-                const subcategoryEl = contentEl.createEl('li', { text: subcategory });
+            const subcategoryList = categoryEl.createEl('ul');
+            this.ruleCategories[category].forEach(subcategory => {
+                const subcategoryEl = subcategoryList.createEl('li', { text: subcategory });
                 subcategoryEl.addEventListener('click', () => {
-                    this.insertHeader(category, subcategory);
+                    const plugin = this.app.plugins.getPlugin('wargame-rules-plugin') as WargameRulesPlugin;
+                    plugin.insertRuleHeader(category, subcategory);
                     this.close();
                 });
-                subcategoryList.appendChild(subcategoryEl);
             });
-
-            categoryEl.appendChild(subcategoryList);
-            listContainer.appendChild(categoryEl);
         });
     }
 
     onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
-    }
-
-    filterCategories() {
-        const searchTerm = this.searchInput.value.toLowerCase();
-        const filteredCategories = this.categories.filter(category =>
-            category.toLowerCase().includes(searchTerm)
-        );
-        const listContainer = this.contentEl.querySelector('.rule-categories-list');
-        if (listContainer) {
-            listContainer.empty();
-            filteredCategories.forEach((category) => {
-                const categoryEl = this.contentEl.createEl('div');
-                categoryEl.addClass('rule-category');
-                categoryEl.createEl('h3', { text: category });
-                const subcategoryList = this.contentEl.createEl('ul');
-
-                this.ruleCategories[category].forEach((subcategory) => {
-                    const subcategoryEl = this.contentEl.createEl('li', { text: subcategory });
-                    subcategoryEl.addEventListener('click', () => {
-                        this.insertHeader(category, subcategory);
-                        this.close();
-                    });
-                    subcategoryList.appendChild(subcategoryEl);
-                });
-
-                categoryEl.appendChild(subcategoryList);
-                listContainer.appendChild(categoryEl);
-            });
-        }
-    }
-
-    insertHeader(category: string, subcategory: string) {
-        const plugin = (this.app.plugins.getPlugin('wargame-rules-plugin') as WargameRulesPlugin);
-        plugin.insertRuleHeader(category, subcategory);
+        this.contentEl.empty();
     }
 }
 
-// Setting tab for customising categories
 class WargameRulesSettingTab extends PluginSettingTab {
     plugin: WargameRulesPlugin;
 
@@ -252,21 +169,19 @@ class WargameRulesSettingTab extends PluginSettingTab {
     }
 
     display(): void {
-        let { containerEl } = this;
-
+        const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Wargame Rules Plugin Settings' });
 
         new Setting(containerEl)
-            .setName('Customize Categories')
-            .setDesc('Modify or add new rule categories and subcategories.')
-            .addButton((btn) => btn.setButtonText('Add Category').onClick(() => {
-                new AddCustomCategoryModal(this.plugin).open();
-            }));
+            .setName('Custom Categories')
+            .setDesc('Add or modify rule categories and subcategories.')
+            .addButton(btn =>
+                btn.setButtonText('Add Category').onClick(() => new AddCustomCategoryModal(this.plugin).open())
+            );
     }
 }
 
-// Modal for adding a custom category and subcategories
 class AddCustomCategoryModal extends Modal {
     plugin: WargameRulesPlugin;
     categoryInput: HTMLInputElement;
@@ -284,9 +199,25 @@ class AddCustomCategoryModal extends Modal {
         contentEl.createEl('h2', { text: 'Add Custom Category' });
 
         this.categoryInput = contentEl.createEl('input', { type: 'text', placeholder: 'Category Name' });
-        this.subcategoriesInput = contentEl.createEl('textarea', { placeholder: 'Enter subcategories, one per line' });
+        this.subcategoriesInput = contentEl.createEl('textarea', { placeholder: 'Subcategories (one per line)' });
 
         new Setting(contentEl)
-            .setName('Subcategories')
-            .addTextArea((text) => {
-                text.setPlaceholder('Subcategory 1\nSubcategory 2\n
+            .setName('Add')
+            .addButton(btn =>
+                btn.setButtonText('Save').onClick(() => {
+                    const categoryName = this.categoryInput.value.trim();
+                    const subcategories = this.subcategoriesInput.value.split('\n').map(s => s.trim()).filter(Boolean);
+                    if (categoryName && subcategories.length) {
+                        this.plugin.addCustomCategory(categoryName, subcategories);
+                        this.close();
+                    } else {
+                        new Notice('Please provide a category name and at least one subcategory.');
+                    }
+                })
+            );
+    }
+
+    onClose() {
+        this.contentEl.empty();
+    }
+}
