@@ -1,0 +1,12 @@
+{
+  "id": "wargame-rules-plugin",
+  "name": "Wargaming Rules Plugin",
+  "version": "1.0.0",
+  "description": "A plugin for managing wargame rules.",
+  "author": "Mattadlard",
+  "main": "main.js",  // This should point to the main JavaScript file of the plugin
+  "minAppVersion": "0.12.0",
+  "dependencies": {
+    "obsidian": "^0.12.0"  // Adjust this version as per Obsidian's current version
+  }
+}
